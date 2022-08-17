@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
 blastSimilarity.pl \
   --pValCutoff  $params.pValCutoff \
   --lengthCutoff $params.lengthCutoff \
