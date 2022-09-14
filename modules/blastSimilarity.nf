@@ -30,6 +30,7 @@ process blastSimilarity {
 workflow nonConfiguredDatabase {
   take:
     seqs
+
   main:
     database = createDatabase()
     results = blastSimilarity("newdb.fasta", seqs, database)
@@ -42,6 +43,7 @@ workflow nonConfiguredDatabase {
 workflow preConfiguredDatabase {
   take:
     seqs
+
   main:
     database = file(params.databaseDir + "/*")
     results = blastSimilarity(params.databaseBaseName, seqs, database)
