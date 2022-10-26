@@ -17,10 +17,11 @@ process blastSimilarity {
     path 'subset.fa'
     path blastDatabase
 
+
   output:
-    path 'blastSimilarity.out'
-    path 'blastSimilarity.log'
-    path '*.gz*' optional true
+    path 'blastSimilarity.out', emit: output_file
+    path 'blastSimilarity.log', emit: log_file
+    path '*.gz*', optional: true, emit: zip_files
 
   script:
     template 'blastSimilarity.bash'
@@ -33,10 +34,10 @@ workflow nonConfiguredDatabase {
 
   main:
     database = createDatabase()
-    results = blastSimilarity("newdb.fasta", seqs, database)
-    results[0] | collectFile(storeDir: params.outputDir, name: params.dataFile)
-    results[1] | collectFile(storeDir: params.outputDir, name: params.logFile)
-    results[2] | collectFile(storeDir: params.outputDir)
+    blastSimilarityResults = blastSimilarity("newdb.fasta", seqs, database)
+    blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
+    blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
+    blastSimilarityResults.zip_files | collectFile(storeDir: params.outputDir)
 }
 
 
@@ -47,7 +48,8 @@ workflow preConfiguredDatabase {
   main:
     database = file(params.databaseDir + "/*")
     results = blastSimilarity(params.databaseBaseName, seqs, database)
-    results[0] | collectFile(storeDir: params.outputDir, name: params.dataFile)
-    results[1] | collectFile(storeDir: params.outputDir, name: params.logFile)
-    results[2] | collectFile(storeDir: params.outputDir)
+    blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
+    blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
+    blastSimilarityResults.zip_files | collectFile(storeDir: params.outputDir)
+    
 }
