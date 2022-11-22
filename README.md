@@ -1,6 +1,34 @@
 # Nextflow Conversion of BlastSimilarityTask
 
-**Explanation of nextflow.config file parameters:**
+***<p align=center>blastSimilarity</p>***  
+```mermaid
+flowchart TD
+    p0((Channel.fromPath))
+    p1([splitFasta])
+    p2(( ))
+    p3[nonConfiguredDatabase:createDatabase]
+    p4(( ))
+    p5[nonConfiguredDatabase:blastSimilarity]
+    p6([collectFile])
+    p7(( ))
+    p8([collectFile])
+    p9(( ))
+    p10([collectFile])
+    p11(( ))
+    p0 --> p1
+    p1 -->|seqs| p5
+    p2 -->|newdb.fasta| p3
+    p3 --> p5
+    p4 -->|fastaName| p5
+    p5 --> p6
+    p5 --> p8
+    p5 --> p10
+    p6 --> p7
+    p8 --> p9
+    p10 --> p11
+```
+
+**<p align=center>Explanation of nextflow.config file parameters:</p>**
 
 | param         | value type        | description  |
 | ------------- | ------------- | ------------ |
