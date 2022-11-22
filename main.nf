@@ -47,7 +47,7 @@ workflow {
   }
    
   else if (params.preConfiguredDatabase) {
-    proConfiguredDatabase(seqs)
+    preConfiguredDatabase(seqs)
   }
 
 }

@@ -3,6 +3,9 @@ nextflow.enable.dsl=2
 
 
 process createDatabase {
+  input:
+    path 'newdb.fasta'
+
   output:
     path 'newdb.fasta.*'
 
@@ -16,7 +19,6 @@ process blastSimilarity {
     val fastaName
     path 'subset.fa'
     path blastDatabase
-
 
   output:
     path 'blastSimilarity.out', emit: output_file
@@ -33,7 +35,7 @@ workflow nonConfiguredDatabase {
     seqs
 
   main:
-    database = createDatabase()
+    database = createDatabase(params.databaseFasta)
     blastSimilarityResults = blastSimilarity("newdb.fasta", seqs, database)
     blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
     blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
@@ -47,7 +49,7 @@ workflow preConfiguredDatabase {
 
   main:
     database = file(params.databaseDir + "/*")
-    results = blastSimilarity(params.databaseBaseName, seqs, database)
+    blastSimilarityResults = blastSimilarity(params.databaseBaseName, seqs, database)
     blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
     blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
     blastSimilarityResults.zip_files | collectFile(storeDir: params.outputDir)
