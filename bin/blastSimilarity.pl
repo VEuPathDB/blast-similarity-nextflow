@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
-use BlastAnal;
-use Utils;
+use CBIL::Bio::Blast::BlastAnal;
+use CBIL::Util::Utils;
 use strict;
 use Getopt::Long;
 use File::Basename;
@@ -169,7 +169,7 @@ sub analyzeBlast{
     if ($? != 0) {die "Failed to rm old zipfile $blastOutFile.gz"};
     return;
   }
-  my $blast = BlastAnal->new($debug);
+  my $blast = CBIL::Bio::Blast::BlastAnal->new($debug);
   my @blastn_out = `$cmd`;
   $blast->parseBlast($lengthCutoff,$percentCutoff,$pValCutoff,$regex,\@blastn_out,$remMaskedRes,($program =~ /rpsblast/ ? 1 : undef));
   
