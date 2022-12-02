@@ -42,14 +42,12 @@ RUN export APICOMMONDATA_GIT_COMMIT_SHA=cf3e3daf2337a88462060439bd1fcf3a4b714c34
     && git clone https://github.com/VEuPathDB/ApiCommonData.git \
     && cd ApiCommonData \
     && git checkout $APICOMMONDATA_GIT_COMMIT_SHA \
-    && mkdir -p $GUS_HOME/lib/perl/ApiCommonData/Load/Plugin \
+    && mkdir -p $GUS_HOME/lib/perl/ApiCommonData/Load/Plugin \ 
     && cp $PROJECT_HOME/ApiCommonData/Load/plugin/perl/*.pm $GUS_HOME/lib/perl/ApiCommonData/Load/Plugin/ \
     && cp $PROJECT_HOME/ApiCommonData/Load/lib/perl/*.pm $GUS_HOME/lib/perl/ApiCommonData/Load/
 
 RUN mkdir /gusApp/gus_home/lib/perl/GUS/Community \
-    mkdir /gusApp/gus_home/lib/perl/VEuPath \
     && cp /gusApp/project_home/GUS/Community/lib/perl/GeneModelLocations.pm /gusApp/gus_home/lib/perl/GUS/Community/
-ADD /lib/perl/* /gusApp/gus_home/lib/perl/VEuPath/
 ENV PERL5LIB=/gusApp/gus_home/lib/perl
 
 WORKDIR /usr/bin/
