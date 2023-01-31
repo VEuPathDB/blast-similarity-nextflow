@@ -7,7 +7,7 @@ blastSimilarity.pl \
   --percentCutoff $params.percentCutoff \
   --blastProgram $params.blastProgram \
   --database $fastaName \
-  --seqFile subset.fa  \
+  --seqFile $subsetFasta  \
   --blastParams $params.blastParamsFile \
   --doNotParse $params.doNotParse \
   --printSimSeqsFile $params.printSimSeqsFile \

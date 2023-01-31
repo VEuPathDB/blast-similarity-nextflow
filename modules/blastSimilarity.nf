@@ -4,7 +4,7 @@ nextflow.enable.dsl=2
 
 process createDatabase {
   input:
-    path 'newdb.fasta'
+    path newdbfasta
 
   output:
     path 'newdb.fasta.*'
@@ -17,7 +17,7 @@ process createDatabase {
 process blastSimilarity {
   input:
     val fastaName
-    path 'subset.fa'
+    path subsetFasta
     path blastDatabase
 
   output:
