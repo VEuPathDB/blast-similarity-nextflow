@@ -2,15 +2,15 @@
 
 set -euo pipefail
 blastSimilarity.pl \
-  --pValCutoff  $params.pValCutoff \
-  --lengthCutoff $params.lengthCutoff \
-  --percentCutoff $params.percentCutoff \
-  --blastProgram $params.blastProgram \
+  --pValCutoff  $pValCutoff \
+  --lengthCutoff $lengthCutoff \
+  --percentCutoff $percentCutoff \
+  --blastProgram $blastProgram \
   --database $fastaName \
   --seqFile $subsetFasta  \
-  --blastParams $params.blastParamsFile \
-  --doNotParse $params.doNotParse \
-  --printSimSeqsFile $params.printSimSeqsFile \
-  --saveAllBlastFiles $params.saveAllBlastFiles \
-  --saveGoodBlastFiles $params.saveGoodBlastFiles \
-  --remMaskedRes $params.adjustMatchLength
+  --doNotParse $doNotParse \
+  --printSimSeqsFile $printSimSeqsFile \
+  --saveAllBlastFiles $saveAllBlastFiles \
+  --saveGoodBlastFiles $saveGoodBlastFiles \
+  --remMaskedRes $adjustMatchLength \
+  --blastArgs $blastArgs

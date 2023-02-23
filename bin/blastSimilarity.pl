@@ -13,7 +13,7 @@ $| = 1;
 
 my ($regex,$pValCutoff,$lengthCutoff,$percentCutoff,$outputType,$program,$rpsblast,
     $database,$seqFile,$blast_version,$startNumber,$stopNumber,$dataFile,$remMaskedRes,
-    $saveAllBlastFiles,$saveGoodBlastFiles,$doNotParse,$blastParamsFile, $doNotExitOnBlastFailure, $blastVendor, $printSimSeqsFile,$blastBinDir, $validOutput, $exitCode);
+    $saveAllBlastFiles,$saveGoodBlastFiles,$doNotParse,$blastArgs, $doNotExitOnBlastFailure, $blastVendor, $printSimSeqsFile,$blastBinDir, $validOutput, $exitCode);
 
 &GetOptions("pValCutoff=f" => \$pValCutoff, 
             "lengthCutoff=i"=> \$lengthCutoff,
@@ -24,14 +24,14 @@ my ($regex,$pValCutoff,$lengthCutoff,$percentCutoff,$outputType,$program,$rpsbla
             "seqFile=s" => \$seqFile,
             "dataFile=s" => \$dataFile,
             "adjustMatchLength!" => \$remMaskedRes,
-            "blastParamsFile=s" => \$blastParamsFile,
+            "blastArgs=s" => \$blastArgs,
             "saveAllBlastFiles=s" => \$saveAllBlastFiles,
             "saveGoodBlastFiles=s" => \$saveGoodBlastFiles,
             "doNotParse=s" => \$doNotParse,
             "printSimSeqsFile=s" => \$printSimSeqsFile,
 	    );
 
-die "Usage: blastSimilarity > --pValCutoff=<float> --lengthCutoff=<int> --percentCutoff=<int> --outputType=(summary|span|both) --blastProgram=<blastprogram> --database=<blast database> --seqFile=<sequenceFile>  --blastParams 'extra blast parameters' --adjustMatchLength! --saveAllBlastFiles! --saveGoodBlastFiles! --doNotParse! --printSimSeqsFile!\n" unless ( $program && $database && $seqFile);
+die "Usage: blastSimilarity > --pValCutoff=<float> --lengthCutoff=<int> --percentCutoff=<int> --outputType=(summary|span|both) --blastProgram=<blastprogram> --database=<blast database> --seqFile=<sequenceFile>  --blastArgs 'extra blast parameters' --adjustMatchLength! --saveAllBlastFiles! --saveGoodBlastFiles! --doNotParse! --printSimSeqsFile!\n" unless ( $program && $database && $seqFile);
 
 ###set the defaullts...
 $pValCutoff = $pValCutoff ? $pValCutoff : 1e-5;
@@ -41,7 +41,7 @@ $outputType = $outputType ? $outputType : "both";
 $dataFile = $dataFile ? $dataFile : "blastSimilarity.out";
 $regex = $regex ? $regex : '(\S+)';
 
-my $blastParams = &parseBlastParams($blastParamsFile);
+my $blastParams = $blastArgs;
 
 $blastVendor = "ncbi";
 $blastBinDir = "/usr/bin/ncbi-blast-2.13.0+/bin";
@@ -78,19 +78,6 @@ close OUT;
 close LOG;
 
 ######################### subroutines ###########################
-
-sub parseBlastParams {
-    my ($blastParamsFile) = @_;
-
-    open(C, "$blastParamsFile") or print LOG "cannot open blastParams file $blastParamsFile";
-    while(<C>){
-	next if /^\s*#/;
-	chomp;
-	$blastParams .= "$_ ";
-    }
-    close(C);
-    return $blastParams;
-}
 
 sub processEntry {
   my($cmd, $accession, $program) = @_;
