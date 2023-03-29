@@ -1,228 +1,166 @@
 #!/usr/bin/perl
 
-use CBIL::Bio::Blast::BlastAnal;
-use CBIL::Util::Utils;
 use strict;
+use warnings;
 use Getopt::Long;
-use File::Basename;
+use List::MoreUtils qw(first_index);
 
+my ($fasta,$result,$output, $minLen, $minPercent, $minPval, $remMaskedRes,$outputType);
+
+&GetOptions("fasta=s"=> \$fasta,
+            "result=s"=> \$result,
+            "output=s"=> \$output,
+            "minLen=i"=> \$minLen,
+            "minPercent=i"=> \$minPercent,
+            "minPval=f"=> \$minPval,
+            "remMaskedRes=s" => \$remMaskedRes,
+            "outputType=s" => \$outputType);
+
+$minPval = $minPval ? $minPval : 1e-5;
+$minLen = $minLen ? $minLen : 10;
+$minPercent = $minPercent ? $minPercent : 20;
+$outputType = $outputType ? $outputType : "both";
+
+my $printSum = 0;
+my $printSpan = 0;
+if($outputType =~ /sum/i){
+    $printSum = 1;
+}elsif($outputType =~ /span/i){
+    $printSpan = 1;
+}elsif($outputType =~ /both/i){
+    $printSum = 1;
+    $printSpan = 1;
+}
+
+my %subjectCountHash = &getSubjectCount($fasta,$result,$minLen,$minPercent,$minPval);
+my @deflines = &getSubjectIds($fasta);
+
+open(my $data, '<', $result) || die "Could not open file $result: $!";
+open(OUT,">$output");
 open(LOG,">blastSimilarity.log");
 
-my $debug = 0;
-$| = 1;
+my $previousQseqId;
+my $previousSseqId = "hello";
+my $counter = 0;
 
-my ($regex,$pValCutoff,$lengthCutoff,$percentCutoff,$outputType,$program,$rpsblast,
-    $database,$seqFile,$blast_version,$startNumber,$stopNumber,$dataFile,$remMaskedRes,
-    $saveAllBlastFiles,$saveGoodBlastFiles,$doNotParse,$blastArgs, $doNotExitOnBlastFailure, $blastVendor, $printSimSeqsFile,$blastBinDir, $validOutput, $exitCode);
+while (my $line = <$data>) {
+    chomp $line;
 
-&GetOptions("pValCutoff=f" => \$pValCutoff, 
-            "lengthCutoff=i"=> \$lengthCutoff,
-            "percentCutoff=i" => \$percentCutoff,
-            "outputType=s" => \$outputType,
-            "blastProgram=s" => \$program,
-            "database=s" => \$database,
-            "seqFile=s" => \$seqFile,
-            "dataFile=s" => \$dataFile,
-            "adjustMatchLength!" => \$remMaskedRes,
-            "blastArgs=s" => \$blastArgs,
-            "saveAllBlastFiles=s" => \$saveAllBlastFiles,
-            "saveGoodBlastFiles=s" => \$saveGoodBlastFiles,
-            "doNotParse=s" => \$doNotParse,
-            "printSimSeqsFile=s" => \$printSimSeqsFile,
-	    );
+    my ($qseqid,$qlen,$sseqid,$slen,$qstart,$qend,$sstart,$send,$evalue,$bitscore,$length,$nident,$pident,$positive,$qframe,$qstrand,$gaps,$qseq) = split(/\t/, $line);
+    my $subjectCount = $subjectCountHash{">$qseqid"};
+    $qstrand eq "minus" ? my $strand = "-" : my $strand = "+";
 
-die "Usage: blastSimilarity > --pValCutoff=<float> --lengthCutoff=<int> --percentCutoff=<int> --outputType=(summary|span|both) --blastProgram=<blastprogram> --database=<blast database> --seqFile=<sequenceFile>  --blastArgs 'extra blast parameters' --adjustMatchLength! --saveAllBlastFiles! --saveGoodBlastFiles! --doNotParse! --printSimSeqsFile!\n" unless ( $program && $database && $seqFile);
-
-###set the defaullts...
-$pValCutoff = $pValCutoff ? $pValCutoff : 1e-5;
-$lengthCutoff = $lengthCutoff ? $lengthCutoff : 10;
-$percentCutoff = $percentCutoff ? $percentCutoff : 20;  ##low for blastp
-$outputType = $outputType ? $outputType : "both";
-$dataFile = $dataFile ? $dataFile : "blastSimilarity.out";
-$regex = $regex ? $regex : '(\S+)';
-
-my $blastParams = $blastArgs;
-
-$blastVendor = "ncbi";
-$blastBinDir = "/usr/bin/ncbi-blast-2.13.0+/bin";
-$doNotExitOnBlastFailure = "false";
-
-open(OUT, ">$dataFile") or print LOG "cannot open output file $dataFile for writing";
-select OUT; $| = 1;
-select STDOUT;
-
-print LOG "processing $seqFile\n";
-open(F, "$seqFile") || print LOG "Couldn't open seqfile $seqFile";
-my $tmpid = "";
-my $seq;
-my $cmd;
-
-my $pgm = basename($program);
-$cmd = "$blastBinDir/$pgm -db $database -query $seqFile $blastParams";
-
-print LOG "$cmd\n\n";
-print LOG "Parser parameters and fields:\n";
-print LOG "Cutoff parameters:\n\tP value: $pValCutoff\n\tLength: $lengthCutoff\n\tPercent Identity: $percentCutoff\n\n";
-print LOG "# Sum: subject_Identifier:score:pvalue:minSubjectStart:maxSubjectEnd:minQueryStart:maxQueryEnd:numberOfMatches:totalMatchLength:numberIdentical:numberPositive:isReversed:readingFrame:non-redundant query match length:non-redundant subject match length:percent of shortest sequence matched\n";
-print LOG "#   HSP: subject_Identifier:numberIdentical:numberPositive:matchLength:score:PValue:subjectStart:subjectEnd:queryStart:queryEnd:isReversed:readingFrame\n\n";
-
-while(<F>){
-    if(/^\>(\S+)/){
-    $tmpid = $1;
+    if ($counter == 0) {
+	&addSubjectsNoCount($previousQseqId,$qseqid,1,@deflines);
+	$subjectCount == 0 ? print LOG "No HSPS passed requirements for $qseqid\n" : print OUT ">$qseqid ($subjectCount subjects)\n";
+	$previousQseqId = $qseqid;
     }
-}
-processEntry($cmd, $tmpid, $program);
 
-close F;
+    if ($qseqid eq $previousQseqId) {
+
+	if ($previousSseqId eq $sseqid) {
+	    print LOG "Multiple HSPS for $qseqid, $sseqid\n";
+	    die;
+	}
+        if ($remMaskedRes eq 'true') {
+	        $qseq =~ s/X//g;
+	        length($qseq) >= 10 ? $length = length($qseq) : print LOG "RemoveMaskedResiduesFromLength: error...length is less than 10 following removal of X's\n";
+	}
+	if ($length >= $minLen && $pident >= $minPercent && $evalue <= $minPval) {
+	    my $nonOverlappingPercent;
+	    my $roundedPercent;
+	    if ($slen < $qlen) {
+		$nonOverlappingPercent = ($slen - $gaps)/$slen * 100;
+		$roundedPercent = sprintf("%.2f", $nonOverlappingPercent);
+	    }
+	    if ($slen >= $qlen) {
+                $nonOverlappingPercent = ($qlen - $gaps)/$qlen * 100;
+		$roundedPercent = sprintf("%.2f", $nonOverlappingPercent);
+	    }
+            if ($printSum) {
+		print OUT "  Sum: $sseqid:$bitscore:$evalue:$sstart:$send:$qstart:$qend:1:$length:$nident:$positive:$strand:$qframe:$qlen:$slen:$roundedPercent\n";
+	    }
+            if ($printSpan) {
+		print OUT "   HSP1: $sseqid:$nident:$positive:$length:$bitscore:$evalue:$sstart:$send:$qstart:$qend:$strand:$qframe\n";
+	    }
+	}
+
+    } else {
+	  &addSubjectsNoCount($previousQseqId,$qseqid,0,@deflines);
+	  $subjectCount == 0 ? print LOG "No HSPS passed requirements for $qseqid\n" : print OUT ">$qseqid ($subjectCount subjects)\n";
+	  if ($remMaskedRes eq 'true') {
+	      $qseq =~ s/X//g;
+	      length($qseq) >= 10 ? $length = length($qseq) : print LOG "RemoveMaskedResiduesFromLength: error...length is less than 10 following removal of X's\n";
+	  }
+	  if ($length >= $minLen && $pident >= $minPercent && $evalue <= $minPval) {
+	      my $nonOverlappingPercent;
+	      my $roundedPercent;
+	      if ($slen < $qlen) {
+		  $nonOverlappingPercent = ($slen - $gaps)/$slen * 100;
+		  $roundedPercent = sprintf("%.2f", $nonOverlappingPercent);
+	      }
+	      if ($slen >= $qlen) {
+                  $nonOverlappingPercent = ($qlen - $gaps)/$qlen * 100;
+		  $roundedPercent = sprintf("%.2f", $nonOverlappingPercent);
+	      }
+	      if ($printSum) {
+		  print OUT "  Sum: $sseqid:$bitscore:$evalue:$sstart:$send:$qstart:$qend:1:$length:$nident:$positive:$strand:$qframe:$qlen:$slen:$roundedPercent\n";
+	      }
+              if ($printSpan) {
+		  print OUT "   HSP1: $sseqid:$nident:$positive:$length:$bitscore:$evalue:$sstart:$send:$qstart:$qend:$strand:$qframe\n";
+	      }
+          }
+    }
+    $previousQseqId = $qseqid;
+    $previousSseqId = $sseqid; 
+    $counter += 1;
+}
+
+close($data);
 close OUT;
 close LOG;
 
-######################### subroutines ###########################
+#============================================= subroutines ==================================================================================
 
-sub processEntry {
-  my($cmd, $accession, $program) = @_;
-
-  print LOG "processing $accession\n";
-  my $validOutput;
-  my $noHits;
-  my $retry = 2;
-  my $try = 1;
-  do {
-    # Create Non-xml output for checking and zipping
-    system("$cmd > out.txt");
-    ($validOutput, $noHits) =
-	&checkOutput($accession);
-  } while (!$validOutput && ($try++ < $retry));
-
-  if (!$validOutput) {
-      if($doNotExitOnBlastFailure eq "true"){
-      print OUT "\>$accession (ERROR: BLAST failed ($try times).";
-      return; 
-    } else {
-	system("cat out.txt > blast.out");
-	if ($? != 0) {die "Failed to move contents of out.txt to blast.out"};
-    }
-  }
-  if ($noHits==1) {
-      print OUT "\>$accession (0 subjects)\n" unless ($printSimSeqsFile eq "true");
-  } else {
-	&analyzeBlast($accession);
-  }
+sub getSubjectIds{
+    my ($fasta) = @_;
+    my @deflines = `grep "^>" $fasta | awk 'sub(/\\slength=[0-9]+/, "")'`;
+    chomp(@deflines);
+    return @deflines;
 }
 
-sub checkOutput {
-    my ($accession) = @_;
+sub getSubjectCount{
+    my ($fasta,$outFile,$minLen,$minPercent,$minPval) = @_;
+    my @deflines = &getSubjectIds($fasta);
+    my %hash = map { $_ => 0 } @deflines;
+    open(my $data, '<', $outFile) || die "Could not open file $outFile: $!";
+    while (my $line = <$data>) {
+        chomp $line;
+        my ($qseqid,$qlen,$sseqid,$slen,$qstart,$qend,$sstart,$send,$evalue,$bitscore,$length,$nident,$pident,$positive,$qframe,$qstrand,$gaps,$qseq) = split(/\t/, $line);
+	if ($length >= $minLen && $pident >= $minPercent && $evalue <= $minPval) {
+	    $hash{">$qseqid"} += 1;
+	}
+    }
+    close($data);
+    return %hash;
+}
 
-    my ($validOutput, $noHits);
-
-    if (`grep "no valid contexts" out.txt`) {
-      print LOG "\>$accession blast failed on low complexity seq\n";
-      $validOutput = 1;
-      $noHits = 1;
-    } elsif (my $res = `grep -A1 -E "nonnegok|novalidctxok|shortqueryok" out.txt`) {
-        print LOG "\>$accession blast failed with: $res \n";
-	$validOutput = 1;
-	$noHits = 1;
-    } elsif (`grep "Sequences producing" out.txt`) {
-         $validOutput = 1;
-	 $noHits = 0;
+sub addSubjectsNoCount {
+    my ($prevQSeqId,$qSeqId,$isFirstQSeq,@subjectIds) = @_;
+    my $counter = 0;
+    if ($isFirstQSeq) {
+        until ($subjectIds[$counter] eq ">$qSeqId") {
+            print OUT "$subjectIds[$counter] (0 subjects)\n";
+	    $counter += 1;
+	}
+    }
+    else {
+        my $firstIndex = first_index { $_ eq ">$prevQSeqId" } @subjectIds;
+	$firstIndex += 1;
+	my $currentIndex = first_index { $_ eq ">$qSeqId" } @subjectIds;
+        until ($firstIndex == $currentIndex) {
+	    print OUT "$subjectIds[$firstIndex] (0 subjects)\n";
+	    $firstIndex += 1;
+        }
     }
 }
-  
-sub analyzeBlast{
-  my($accession) = @_;
-  my $printSum = 0;
-  my $printSpan = 0;
-  if($outputType =~ /sum/i){
-      $printSum = 1;
-  }elsif($outputType =~ /span/i){
-      $printSpan = 1;
-  }elsif($outputType =~ /both/i){
-      $printSum = 1;
-      $printSpan = 1;
-  }
-
-  if($doNotParse eq "true"){ ##in this case must  be saving all blast files...
-    my $blastOutFile = "$accession";
-    system("touch '$blastOutFile'");
-    if ($? != 0) {die "Failed to create blastOutFile $blastOutFile"};
-    system("cat out.txt > '$blastOutFile'");
-    if ($? != 0) {die "Failed to move contents of out.txt to blastOutFile $blastOutFile"};
-    system("gzip -f '$blastOutFile'");
-    if ($? != 0) {die "Failed to zip blastOutFile $blastOutFile"};
-    system("/usr/bin/fixZip.pl -string '$blastOutFile.gz'");
-    if ($? != 0) {die "Failed to run fixZip.pl on zipped blastOutFile $blastOutFile"}
-    system("rm '$blastOutFile.gz'");
-    if ($? != 0) {die "Failed to rm old zipfile $blastOutFile.gz"};
-    return;
-  }
-  my $blast = CBIL::Bio::Blast::BlastAnal->new($debug);
-  my @blastn_out = `$cmd`;
-  $blast->parseBlast($lengthCutoff,$percentCutoff,$pValCutoff,$regex,\@blastn_out,$remMaskedRes,($program =~ /rpsblast/ ? 1 : undef));
-  
-  if ($printSimSeqsFile eq "true"){
-    &printSSFile($accession, $blast);
-    return;
-  }
-  
-  print OUT "\>$accession (".$blast->getSubjectCount()." subjects)\n";
-  
-  foreach my $s ($blast->getSubjects()){
-    print OUT $s->getSimilaritySummary(":")."\n" if $printSum;
-    print OUT $s->getSimilaritySpans(":")."\n" if $printSpan;
-  }
-
-  if(($saveAllBlastFiles eq "true" && $doNotParse eq "false") || ($saveGoodBlastFiles eq "true" && $blast->getSubjectCount() >= 1)){
-    my $blastOutFile = "$accession";
-    system("touch '$blastOutFile'");
-    if ($? != 0) {die "Failed to create blastOutFile $blastOutFile"};
-    system("cat out.txt > '$blastOutFile'");
-    if ($? != 0) {die "Failed to move contents of out.txt to blastOutFile $blastOutFile"};
-    system("gzip -f '$blastOutFile'");
-    if ($? != 0) {die "Failed to zip blastOutFile $blastOutFile"};
-    system("/usr/bin/fixZip.pl -string '$blastOutFile.gz'");
-    if ($? != 0) {die "Failed to run fixZip.pl on zipped blastOutFile $blastOutFile"};
-  } 
-}
-
-sub breakSequence{
-  my($seq) = @_;
-  my $s;
-  my $formSeq = "";
-  $seq =~ s/\s//g;  ##cleans up newlines and spaces
-  for($s=0;$s<length($seq);$s+=80){
-    $formSeq .= substr($seq,$s,80) . "\n";
-  }
-  return $formSeq;
-}
-
-sub printSSFile {
-  my ($accession, $blast) = @_;
-
-  my @q = split (/\|/, $accession); 
-  my $qTaxAbbrev = shift(@q); # taxon is before the first pipe.  beware accession might also have pipes
-
-  foreach my $s ($blast->sortSubjectsByPValue()){
-
-    my $s_accession = $s->getID();
-    next if $s_accession eq $accession;
-
-    my ($mant, $exp);
-    if ($s->getPValue() =~ /e/) {
-      my $pValue = $s->getPValue() =~ /^e/ ?  '1' . $s->getPValue()  : $s->getPValue() ;
-      ($mant, $exp) = split(/e/, $pValue);
-    } else {
-	$mant = int($s->getPValue());
-	$exp = 0;
-    }
-
-    my @s = split (/\|/, $s->getID());
-    my $sTaxAbbrev = shift(@s);
-
-    my $perIdent = sprintf("%.0f", (($s->getTotalIdentities()/$s->getTotalMatchLength())*100));
-    my $perMatch = sprintf("%.0f", (int(($s->getLength() < $s->getQueryLength() ? $s->getNonoverlappingSubjectMatchLength() / $s->getLength() : $s->getNonoverlappingQueryMatchLength() / $s->getQueryLength()) * 10000) / 100));
-
-    # accessions must include taxon abbrev prefix
-    print OUT "$accession $s_accession $qTaxAbbrev $sTaxAbbrev $mant $exp $perIdent $perMatch\n";
-  }
-  }

@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
-
 process createDatabase {
   input:
     path newdbfasta
@@ -13,10 +12,9 @@ process createDatabase {
     template 'createDatabase.bash'
 }
 
-
 process blastSimilarity {
   input:
-    val fastaName
+    val databaseName
     path subsetFasta
     path blastDatabase
     val pValCutoff 
@@ -24,17 +22,13 @@ process blastSimilarity {
     val percentCutoff 
     val blastProgram  
     val blastArgs 
-    val doNotParse 
-    val printSimSeqsFile 
-    val saveAllBlastFiles
-    val saveGoodBlastFiles
+    val outputType 
+    val printSimSeqs 
     val adjustMatchLength
-
 
   output:
     path 'blastSimilarity.out', emit: output_file
     path 'blastSimilarity.log', emit: log_file
-    path '*.gz*', optional: true, emit: zip_files
 
   script:
     template 'blastSimilarity.bash'
@@ -47,10 +41,9 @@ workflow nonConfiguredDatabase {
 
   main:
     database = createDatabase(params.databaseFasta)
-    blastSimilarityResults = blastSimilarity("newdb.fasta", seqs, database, params.pValCutoff, params.lengthCutoff, params.percentCutoff, params.blastProgram, params.blastArgs, params.doNotParse, params.printSimSeqsFile, params.saveAllBlastFiles, params.saveGoodBlastFiles, params.adjustMatchLength)
+    blastSimilarityResults = blastSimilarity("newdb.fasta", seqs, database, params.pValCutoff, params.lengthCutoff, params.percentCutoff, params.blastProgram, params.blastArgs, params.outputType, params.printSimSeqs, params.adjustMatchLength)
     blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
     blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
-    blastSimilarityResults.zip_files | collectFile(storeDir: params.outputDir)
 }
 
 
@@ -60,9 +53,7 @@ workflow preConfiguredDatabase {
 
   main:
     database = file(params.databaseDir + "/*")
-    blastSimilarityResults = blastSimilarity(params.databaseBaseName, seqs, database, params.pValCutoff, params.lengthCutoff, params.percentCutoff, params.blastProgram, params.blastArgs, params.doNotParse, params.printSimSeqsFile, params.saveAllBlastFiles, params.saveGoodBlastFiles, params.adjustMatchLength)
+    blastSimilarityResults = blastSimilarity(params.databaseBaseName, seqs, database, params.pValCutoff, params.lengthCutoff, params.percentCutoff, params.blastProgram, params.blastArgs, params.outputType, params.printSimSeqs, params.adjustMatchLength)
     blastSimilarityResults.output_file | collectFile(storeDir: params.outputDir, name: params.dataFile)
     blastSimilarityResults.log_file | collectFile(storeDir: params.outputDir, name: params.logFile)
-    blastSimilarityResults.zip_files | collectFile(storeDir: params.outputDir)
-    
 }
