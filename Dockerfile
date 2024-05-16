@@ -11,7 +11,7 @@ RUN apt-get -qq update --fix-missing \
 WORKDIR /usr/bin/
 
 # Setting up ncbi blast tools
-RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.13.0+-x64-linux.tar.gz \
+RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.13.0/ncbi-blast-2.13.0+-x64-linux.tar.gz \
   && tar -zxvf ncbi-blast-2.13.0+-x64-linux.tar.gz \
   && rm -rf ncbi-blast-2.13.0+-x64-linux.tar.gz
 
