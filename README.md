@@ -1,60 +1,70 @@
-THIS REPO IS 🚧 UNDER CONSTRUCTION 🚧 and NOT Used in ANY production CODE
-# Nextflow Conversion of BlastSimilarityTask
+# blast-similarity-nextflow
 
-***<p align=center>blastSimilarity</p>***  
-```mermaid
-flowchart TD
-    p0((Channel.fromPath))
-    p1([splitFasta])
-    p2(( ))
-    p3[nonConfiguredDatabase:createDatabase]
-    p4(( ))
-    p5[nonConfiguredDatabase:blastSimilarity]
-    p6([collectFile])
-    p7(( ))
-    p8([collectFile])
-    p9(( ))
-    p10([collectFile])
-    p11(( ))
-    p0 --> p1
-    p1 -->|seqs| p5
-    p2 -->|newdb.fasta| p3
-    p3 --> p5
-    p4 -->|fastaName| p5
-    p5 --> p6
-    p5 --> p8
-    p5 --> p10
-    p6 --> p7
-    p8 --> p9
-    p10 --> p11
+A Nextflow pipeline that computes sequence similarity between a query FASTA file and a target database using NCBI BLAST+.
+
+## Overview
+
+This pipeline runs any NCBI BLAST+ program (`blastn`, `blastp`, `blastx`, etc.) to compare a set of query sequences against a nucleotide or protein database, then parses the raw BLAST output into VEuPathDB's standard similarity result format. It is used across VEuPathDB's genomic data workflows to generate pairwise sequence similarity data — for example as an input to comparative genomics, orthology, and annotation pipelines. The query FASTA is split into subsets and searched in parallel, and per-subset results are collected into a single output file along with a combined log.
+
+## Requirements
+
+- [Nextflow](https://www.nextflow.io/) (DSL2)
+- Docker (the pipeline runs inside the `veupathdb/blastsimilarity` container image; enabled by default in `nextflow.config`)
+
+## Usage
+
+```
+nextflow run VEuPathDB/blast-similarity-nextflow -r main \
+  --seqFile /path/to/query.fasta \
+  --databaseFasta /path/to/target.fasta \
+  --databaseType nucl \
+  --blastProgram blastn \
+  --outputDir /path/to/output \
+  -resume
 ```
 
-**<p align=center>Explanation of nextflow.config file parameters:</p>**
+The pipeline has a single entry point that branches internally based on `params.preConfiguredDatabase`:
 
-| param         | value type        | description  |
-| ------------- | ------------- | ------------ |
-| blastProgram  | string | Name of NCBI blast tool you want to run |
-| seqFile  | string | Path to input file |
-| preConfiguredDatabase  | boolean | If you have databasefiles generated from NCBI's makeblastdb, there is no need to generate these files. If this is set to true, you will need to supply databaseDir and databaseBaseName. |
-| databaseDir | string | The path to the directory containing the database files. There can be other files in this directory, but any file beginning with the databaseBaseName will be brought into the process. |
-| databaseBaseName | string | The rootname for you database files. For example, "newdb.fasta" would be used for the files in blastSimilarity/data/database |
-| databaseFasta | string | The location of the fasta file that you would like to use to create your database. Needed if preConfiguredDatabase is false. |
-| databaseType | string | The type of database you are using. Either "prot" or "nucl". Only needed if preConfiguredDatabase is false. |
-| dataFile | string | How you would like the main output file to be named. |
-| logFile | string | How you would like the log file to be named. |
-| outputDir | string | Path to where you would like output files stored |
-| saveAllBlastFiles | boolean | If true, the blast output for each time blast is ran. If you have 9 sequences in your input file, and you have fastaSubsetSize as 1, you will recieve 9 zipped files. If fastaSubsetSize is equal to three, you will recieve 3 zipped files. Zipped file names will be the sequence identifier for the first sequence in the group being run that is put into the file (also will be the last in the zip file). |
-| saveGoodBlastFiles | boolean | Similar to saveAllBlastFiles, expect only files that contain a hit will be saved. saveGood and saveAll should not both be true. |
-| doNotParse | boolean | This tool operates in two steps, running blast and grepping through the output to collect and return values. If doNotParse is true, only the blast output is generated and returned. If false, then the output will continue on to the processing step. |
-| printSimSeqsFile | boolean | Changes the output format of dataFile. Returns sequence accession from seqFile, the taxon it matched with from the database, the p-value, the exponent for the p-Value, and some stats per identity and per match. | 
-| blastParamsFile | string | The file location of the file containing additional blast paramenters. These can just be written out in the file as if you were using them on the command line. |
-| fastaSubsetSize | Int | Number of sequences per split of seqFile passed to blastSimilarity process. |
- 
-### Get Started
-  * Install Nextflow
-    
-    `curl https://get.nextflow.io | bash`
-  
-  * Run the script
-    
-    `nextflow run VEuPathDB/blastSimilarity -with-trace -c  <config_file> -r main`
+- If `params.preConfiguredDatabase` is `false` (the default), `makeblastdb` builds a new BLAST database from `params.databaseFasta` (of type `params.databaseType`) before running the search.
+- If `params.preConfiguredDatabase` is `true`, the search runs directly against an existing BLAST database, given by `params.databaseDir` and `params.databaseBaseName`, skipping the database-build step.
+
+Example using a pre-built database:
+
+```
+nextflow run VEuPathDB/blast-similarity-nextflow -r main \
+  --seqFile /path/to/query.fasta \
+  --preConfiguredDatabase true \
+  --databaseDir /path/to/database \
+  --databaseBaseName newdb.fasta \
+  --blastProgram blastp \
+  --outputDir /path/to/output \
+  -resume
+```
+
+## Key Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `seqFile` | `data/isosmall.fsa` | FASTA file of query sequences to search |
+| `fastaSubsetSize` | `1` | Number of sequences per chunk when splitting the query FASTA for parallel searches |
+| `blastProgram` | `blastn` | NCBI BLAST+ program to run (`blastn`, `blastp`, `blastx`, `tblastn`, `tblastx`) |
+| `blastArgs` | `""` | Additional raw command-line arguments passed to the BLAST program |
+| `preConfiguredDatabase` | `false` | Whether to search against an existing BLAST database instead of building one |
+| `databaseFasta` | `data/genomicSeqs.fa` | FASTA file used to build the BLAST database when `preConfiguredDatabase` is `false` |
+| `databaseType` | `nucl` | Database type (`nucl` or `prot`) passed to `makeblastdb`, used when `preConfiguredDatabase` is `false` |
+| `databaseDir` | `data/database` | Directory containing a pre-built BLAST database, used when `preConfiguredDatabase` is `true` |
+| `databaseBaseName` | `newdb.fasta` | Base name of the pre-built database files in `databaseDir` |
+| `pValCutoff` | `1e-5` | Minimum p-value/e-value for a hit to be retained |
+| `lengthCutoff` | `1` | Minimum alignment length for a hit to be retained |
+| `percentCutoff` | `1` | Minimum percent identity for a hit to be retained |
+| `outputType` | `both` | Result summarization mode passed to `blastSimilarity.pl`: `sum`, `span`, or `both` |
+| `printSimSeqs` | `false` | When `true`, format output with `printSimSeqs.pl` (per-hit similarity summary) instead of `blastSimilarity.pl` |
+| `adjustMatchLength` | `false` | Whether to remove masked residues when computing match length/identity stats |
+| `dataFile` | `blastSimilarity.out` | Filename of the collected similarity results, written to `outputDir` |
+| `logFile` | `blastSimilarity.log` | Filename of the collected run log, written to `outputDir` |
+| `outputDir` | `$launchDir/output` | Directory the final output files are published to |
+
+## Output
+
+- `<dataFile>` — collected BLAST similarity results (format depends on `outputType`/`printSimSeqs`), written to `outputDir`
+- `<logFile>` — collected log of parsing/filtering messages, written to `outputDir`
